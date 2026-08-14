@@ -994,20 +994,13 @@ bot.on('inline_query', async (ctx) => {
             results.unshift(qrItem);
         }
     }
-    try {
-        // Fail-open race: wait up to 10s for Telegram; if egress is slow/dead, respond
-        // to the webhook immediately so users don't wait for external services.
-        await Promise.race([
-            ctx.answerInlineQuery(results, { cache_time: 0, switch_pm_text, switch_pm_parameter }),
-            new Promise((r) => setTimeout(() => {
-                console.log('⚠ Inline answer slow (egress?) — responding without waiting further');
-                r();
-            }, 10000))
-        ]);
-    } catch (e) {
-        console.error('⚠ Inline answer failed:', e.description || e.message);
-    }
+        // Fire-and-forget delivery: webhook responds immediately after QR preparation;
+    // the Telegram answer continues in the background and never blocks users.
+    ctx.answerInlineQuery(results, { cache_time: 0, switch_pm_text, switch_pm_parameter })
+        .then(() => { console.log('✔ Inline answer delivered (bg)'); })
+        .catch((e) => { console.error('⚠ Inline answer failed (bg):', e.description || e.message); });
 });
+
 
 // ═══════════════════════════════════════════════════════
 // WEBHOOK SERVER (Express + Telegraf webhook callback)
